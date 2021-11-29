@@ -1,4 +1,3 @@
-
 from django.contrib.auth.models import (
     AbstractBaseUser, BaseUserManager, PermissionsMixin)
 
@@ -30,13 +29,17 @@ class UserManager(BaseUserManager):
         return user
 
 
-AUTH_PROVIDERS = { 'email': 'email'}
+AUTH_PROVIDERS = {'email': 'email'}
 
 
 class User(AbstractBaseUser, PermissionsMixin):
+    # login = models.CharField(max_length=255,blank=True,null=True)
     username = models.CharField(max_length=255, unique=True, db_index=True)
     email = models.EmailField(max_length=255, unique=True, db_index=True)
+    phone_number = models.CharField(max_length=10)
+    code_from_send_by_sms = models.CharField(max_length=6, help_text="6-и значный код подтверждения")
     is_verified = models.BooleanField(default=False)
+    is_phone_verified = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -59,3 +62,59 @@ class User(AbstractBaseUser, PermissionsMixin):
             'refresh': str(refresh),
             'access': str(refresh.access_token)
         }
+
+
+class ModelForCodes(models.Model):
+    user_id = models.CharField(max_length=255)
+    code = models.CharField(max_length=6)
+
+
+class ModelForSMSRecovery(models.Model):
+    phone_number = models.CharField(max_length=10)
+
+    code_from_send_by_sms = models.CharField(max_length=6, help_text="6-и значный код подтверждения")
+
+
+class UserResetPasswordCode(models.Model):
+    user_id = models.CharField(max_length=255)
+    verify_code = models.CharField(max_length=100)
+
+
+class Tag(models.Model):
+    tag = models.CharField(max_length=150, verbose_name="Теги")
+
+
+    def __str__(self):
+        return self.tag
+
+
+class Article(models.Model):
+
+    createdAt = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name="Дата создания",
+        editable=False,
+
+    )
+    updatedAt = models.DateTimeField(
+        auto_now=True,
+        verbose_name="Дата обновления"
+    )
+    title = models.CharField(max_length=150, blank=False, verbose_name="Название")
+    description = models.CharField(max_length=150, verbose_name="Описание")
+    image = models.ImageField(
+        upload_to="image/%Y/%m/%d", verbose_name="Изображение", blank=True
+    )
+    author = models.CharField(max_length=150, verbose_name="Автор")
+    url = models.CharField(max_length=150, blank=False, verbose_name="Url")
+    tag = models.ManyToManyField(Tag, verbose_name="Тег")
+
+    class Meta:
+        verbose_name = u"Блог"
+        verbose_name_plural = u"Блог"
+
+    def __str__(self):
+        return self.title
+
+
+

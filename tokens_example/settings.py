@@ -33,11 +33,11 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 REST_FRAMEWORK = {
-
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
+    "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
+    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
 
 }
 SIMPLE_JWT = {
@@ -76,9 +76,16 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt",
     "rest_framework",
     "rest_framework_simplejwt.token_blacklist",
-    "app.apps.AppConfig",
+    # 'oauth2_provider',
     'drf_yasg',
+    # 'social_django',
+    # "rest_framework_social_oauth2",
+    "django_filters",
+    "app.apps.AppConfig",
+
 ]
+# SITE_ID = 1
+STATIC_URL = '/static/'
 SWAGGER_SETTINGS = {
     'SECURITY_DEFINITIONS': {
         'Bearer': {
@@ -89,7 +96,12 @@ SWAGGER_SETTINGS = {
     }
 }
 AUTH_USER_MODEL = "app.User"
+AUTHENTICATION_BACKENDS = (
 
+    'django.contrib.auth.backends.ModelBackend',
+)
+# SOCIAL_AUTH_VK_OAUTH2_KEY = '8004154'
+# SOCIAL_AUTH_VK_OAUTH2_SECRET = 'XVOE6LSSQdheu13VMCdG'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -99,9 +111,19 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+REDIS_HOST = '0.0.0.0'
+REDIS_PORT = '6379'
+
+CELERY_BROKER_URL = "redis://"+REDIS_HOST+':'+REDIS_PORT+'/0'
+CELERY_BROKER_TRANSPORT_OPTIONS = {'visibility_timeout':3600}
+CELERY_RESULT_BACKEND = "redis://"+REDIS_HOST+':'+REDIS_PORT+'/0'
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 
 ROOT_URLCONF = 'tokens_example.urls'
-
+# LOGIN_REDIRECT_URL = 'http://192.168.0.59:7000/pass/'
+# SOCIAL_AUTH_VK_OAUTH2_SCOPE = ['email']
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -113,6 +135,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                # 'social_django.context_processors.backends',
             ],
         },
     },
@@ -168,7 +191,6 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
 
-STATIC_URL = '/static/'
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = os.getenv('EMAIL_SMTP_SERVER')
@@ -178,6 +200,9 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL')
 EMAIL_USE_TLS = False
 EMAIL_USE_SSL = True
+
+STATIC_URL = "/static/"
+STATIC_ROOT = os.path.join(BASE_DIR, "static/")
 
 
 # Default primary key field type
