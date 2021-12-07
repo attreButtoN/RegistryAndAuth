@@ -1,5 +1,7 @@
 from django.conf.urls.static import static
+from django.contrib.auth import logout
 from django.urls import path,include
+# from .register_google import RegisterGoogle
 from app.views import *
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -20,7 +22,7 @@ urlpatterns = [
     path('send-code/',SendVerificationCode.as_view()),
     path("logout/",LogoutAPIView.as_view()),
     path("change_password",ChangePassword.as_view()),
-
+    path("unfreeze/",UnFreeze.as_view()),
     path("reset-password-sms/",ForgotPasswordRecoveryBySMSView.as_view()),
     path("send-sms-reset-password",SendSmsForgotPasswordView.as_view()),
     path("email-reset-password/", ForgotPasswordView.as_view()),
@@ -30,6 +32,14 @@ urlpatterns = [
     path('me/',UserData.as_view()),
     path("article/",CreateRetrieveArticle.as_view()),
     path("article/<int:pk>/",DestroyUpdateArticle.as_view()),
+
+
+    # path('register_google/',RegisterGoogle),
+    # path('google/', GoogleSocialAuthView.as_view()),
+    # path('', include('social_django.urls', namespace='social')),
+    # path('logout/', logout, {'next_page': settings.LOGOUT_REDIRECT_URL},
+    # name='logout'),
+    #
 
 
 

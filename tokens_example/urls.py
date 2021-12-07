@@ -23,7 +23,8 @@ from django.urls import path
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("",include("app.urls")),
-
+    # path('social_auth/', include(('social_auth'),
+    #                              namespace="social_auth")),
     # path('vk/', include('social_django.urls')), # vk-oauth2
     # path("auth/",include('rest_framework_social_oauth2.urls')),
 ]

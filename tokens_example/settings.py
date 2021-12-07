@@ -78,11 +78,11 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     # 'oauth2_provider',
     'drf_yasg',
-    # 'social_django',
     # "rest_framework_social_oauth2",
+    # "social_auth",
     "django_filters",
     "app.apps.AppConfig",
-
+    # 'social_django',
 ]
 # SITE_ID = 1
 STATIC_URL = '/static/'
@@ -97,9 +97,17 @@ SWAGGER_SETTINGS = {
 }
 AUTH_USER_MODEL = "app.User"
 AUTHENTICATION_BACKENDS = (
-
+    # 'social_core.backends.google.GoogleOAuth2',
     'django.contrib.auth.backends.ModelBackend',
 )
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = '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'
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = "269848611801-6p8g25rovhjrhm551jdl5q2c3dk3ii73.apps.googleusercontent.com"
+
+
+LOGIN_URL = 'http://localhost:7000/login/google-oauth2/'
+SOCIAL_AUTH_URL_NAMESPACE = 'social'
+LOGIN_REDIRECT_URL = 'http://localhost:7000/me/'
+LOGOUT_REDIRECT_URL = 'http://localhost:7000/me/'
 # SOCIAL_AUTH_VK_OAUTH2_KEY = '8004154'
 # SOCIAL_AUTH_VK_OAUTH2_SECRET = 'XVOE6LSSQdheu13VMCdG'
 MIDDLEWARE = [
@@ -203,6 +211,9 @@ EMAIL_USE_SSL = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static/")
+
+MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+MEDIA_URL = "/media/"
 
 
 # Default primary key field type

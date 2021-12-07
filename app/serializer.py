@@ -7,13 +7,20 @@ from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.utils.encoding import smart_str, force_str, smart_bytes, DjangoUnicodeDecodeError
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-
+from rest_framework import serializers
+# from . import google
+# from .register_google import register_social_user as register_social_user
+import os
+from rest_framework.exceptions import AuthenticationFailed
+from .utils import AccountUtils
 
 
 class UserSerialier(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = '__all__'
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         max_length=68, min_length=6, write_only=True)
@@ -28,6 +35,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         email = attrs.get('email', '')
         username = attrs.get('username', '')
+        # user_type = attrs.get('user_type', '')
 
         if not username.isalnum():
             raise serializers.ValidationError(
@@ -39,6 +47,14 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class EmailVerificationSerializer(serializers.ModelSerializer):
+    token = serializers.CharField(max_length=555)
+
+    class Meta:
+        model = User
+        fields = ['token']
+
+
+class UnFreezeAccountSerializer(serializers.ModelSerializer):
     token = serializers.CharField(max_length=555)
 
     class Meta:
@@ -89,12 +105,13 @@ class LoginSerializer(serializers.ModelSerializer):
         if user is None:
             filtered_user_by_email = User.objects.filter(phone_number=email).first()
             user = filtered_user_by_email
-            if user.is_phone_verified == False:
-                raise AuthenticationFailed('Phone is not verified, verify your phone')
-            email = filtered_user_by_email.email
-            user = auth.authenticate(email=email, password=password)
-            print(user)
-            print(filtered_user_by_email)
+            if user is not None:
+                if user.is_phone_verified == False:
+                    raise AuthenticationFailed('Phone is not verified, verify your phone')
+                email = filtered_user_by_email.email
+                user = auth.authenticate(email=email, password=password)
+                print(user)
+                print(filtered_user_by_email)
         filtered_user_by_email = User.objects.filter(phone_number=email)
 
         if filtered_user_by_email.exists() and filtered_user_by_email[0].auth_provider != 'email':
@@ -102,12 +119,20 @@ class LoginSerializer(serializers.ModelSerializer):
                 detail='Please continue your login using ' + filtered_user_by_email[0].auth_provider)
 
         if not user:
+            user_id = User.objects.get(email=email).pk
+            user = User.objects.get(email=email)
+            if user.is_active == False:
+                AccountUtils.unfreeze_account(user)
+                raise AuthenticationFailed("Ваш аккаунт был заморожен, следуйте инструкциям отправленным на почту")
+
+            AccountUtils.check_unsuccessful_tries(user_id)
+
             raise AuthenticationFailed('Invalid credentials, try again')
         if not user.is_active:
             raise AuthenticationFailed('Account disabled, contact admin')
         if not user.is_verified:
             raise AuthenticationFailed('Email is not verified')
-
+        AccountUtils.clear_unsuccessful_tries(user)
         return {
             'email': user.email,
             'username': user.username,
@@ -198,6 +223,11 @@ class ResetPasswordByPhoneSerializer(serializers.Serializer):
         help_text="Code from SMS",
 
     )
+    phone_number = serializers.CharField(
+        required=True,
+        help_text="Hidden",
+
+    )
     new_password = serializers.CharField(
         write_only=True,
         required=True,
@@ -254,17 +284,17 @@ class TagSerializer(serializers.ModelSerializer):
     tag = models.CharField(max_length=150, verbose_name="Теги")
 
     class Meta:
-
         model = Tag
         fields = (
             "id",
             "tag",
-            )
+        )
 
 
 class ArticleSerializer(serializers.ModelSerializer):
     # tag = TagSerializer(many=True)
     author = serializers.CharField()
+
     # title = serializers.CharField(max_length = 255)
 
     class Meta:
@@ -300,3 +330,27 @@ class ArticleSerializer(serializers.ModelSerializer):
     #     new_data.author = user
     #     new_data.save()
     #     return new_data
+
+# class GoogleSocialAuthSerializer(serializers.Serializer):
+#     auth_token = serializers.CharField()
+#
+#     def validate_auth_token(self, auth_token):
+#         user_data = google.Google.validate(auth_token)
+#         try:
+#             user_data['sub']
+#         except:
+#             raise serializers.ValidationError(
+#                 'The token is invalid or expired. Please login again.'
+#             )
+#
+#         if user_data['aud'] != os.environ.get('GOOGLE_CLIENT_ID'):
+#
+#             raise AuthenticationFailed('oops, who are you?')
+#
+#         user_id = user_data['sub']
+#         email = user_data['email']
+#         name = user_data['name']
+#         provider = 'google'
+#
+#         return register_social_user(
+#             provider=provider, user_id=user_id, email=email, name=name)

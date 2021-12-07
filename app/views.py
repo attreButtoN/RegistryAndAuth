@@ -4,6 +4,7 @@ import jwt
 from django.conf import settings
 from django.db.models import Q
 from drf_yasg import openapi
+from rest_framework.generics import GenericAPIView
 
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -18,6 +19,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.sites.shortcuts import get_current_site
 from django.urls import reverse
 from .utils import Util, PhoneUtil, AccountUtils
+from .watermark import image_watermark, text_watermark
 from django.http import HttpResponsePermanentRedirect
 import os
 from .renderers import *
@@ -62,11 +64,36 @@ class RegisterView(generics.GenericAPIView):
 
         Util.send_email(data)
         return Response(user_data, status=status.HTTP_201_CREATED)
+    def get(self,requset):
+        data = requset.data
+        serializer = self.serializer_class(data=data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        data = serializer.data
+        return Response(data)
+
+
+
+class UnFreeze(APIView):
+    serializer_class = UnFreezeAccountSerializer
+    permission_classes = [AllowAny]
 
     def get(self, request):
-        data = User.objects.all()
-        user = UserSerialier(data, many=True)
-        return Response(user.data)
+        token = request.GET.get(str('token'))
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms="HS256")
+        user = User.objects.get(id=payload['user_id'])
+        try:
+            if not user.is_active:
+                user.is_active = True
+                user.save()
+                AccountUtils.clear_unsuccessful_tries(user)
+            else:
+                return Response({"Аккаунт не заморожен"})
+            return Response({'email': 'Аккаунт разморожен'}, status=status.HTTP_200_OK)
+        except jwt.ExpiredSignatureError as identifier:
+            return Response({'error': 'Activation Expired'}, status=status.HTTP_400_BAD_REQUEST)
+        except jwt.exceptions.DecodeError as identifier:
+            return Response({'error': 'Invalid token'}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VerifyEmail(views.APIView):
@@ -190,6 +217,7 @@ class SendSmsForgotPasswordView(APIView):
 
     def post(self, request):
         user = User.objects.filter(phone_number=request.data.get("phone_number")).first()
+        print(user)
         code = PhoneUtil.create_code(request, user)
         phone_number = PhoneUtil.send_verification_sms(request, code, user)
 
@@ -203,14 +231,26 @@ class ForgotPasswordRecoveryBySMSView(APIView):
     def post(self, request):
         # input_code = request.data.get("code_from_send_by_sms")
         try:
+
+
             input_code = request.data.get("sms_code")
-            print(input_code)
+            # print(input_code)
             code_model = ModelForCodes.objects.get(code=input_code)
             print(code_model)
 
         except Exception as ex:
-            print(ex)
-            return Response(status=status.HTTP_404_NOT_FOUND, data={"Error": "You're invalid insert code correctly"})
+            phone_number = request.data.get("phone_number")
+            user = User.objects.filter(phone_number = phone_number).first()
+            AccountUtils.check_unsuccessful_tries(user.pk)
+            code_model_true = ModelForCodes.objects.filter(user_id=user.pk).first()
+            model = UnsuccessfulTries.objects.filter(user_id=user.pk).first()
+
+            if model.tries >=3:
+                AccountUtils.clear_unsuccessful_tries(user)
+                PhoneUtil.delete_used_recovery_sms(code_model_true)
+                return Response(data = {"Code deleated, try again"},status =status.HTTP_400_BAD_REQUEST)
+            # code_model.save()
+            return Response(status=status.HTTP_404_NOT_FOUND, data={"Error": f"You're invalid insert code correctly, you have {3-code_model_true.tries} chances until cod delete"})
         if code_model is not None:
             if code_model.code == input_code:
                 new_password = request.data.get("new_password")
@@ -224,6 +264,12 @@ class ForgotPasswordRecoveryBySMSView(APIView):
                 else:
                     return Response({"Password Fields have differences"}, status=status.HTTP_400_BAD_REQUEST)
             else:
+                if code_model.tries >=3:
+                    PhoneUtil.delete_used_recovery_sms(code_model)
+                    return Response(status=status.HTTP_403_FORBIDDEN,data={"Ошибка":"Превышен лимит неправильных вводов"})
+                else:
+                    code_model.tries+=1
+                    code_model.save()
                 return Response(status=status.HTTP_400_BAD_REQUEST, data={"code error": "Неверный код"})
 
 
@@ -232,7 +278,7 @@ class ForgotPasswordView(APIView):
     serializer_class = ResetPasswordEmailSerializer
 
     def post(self, request, *args, **kwargs):
-        print(request.data)
+
         id_user = request.data.get("id")
         verify_code = request.data.get("verify_code")
         password = request.data.get("password")
@@ -319,6 +365,10 @@ class CreateRetrieveArticle(APIView):
         user = request.user
         data = request.data
         request.data._mutable = True
+        # request.data  ["image"] = image_watermark(request)\
+        url = request.data["url"]
+        image = request.data["image"]
+        # image_watermark(str(image))
         request.data['author'] = user.email
         print(request.data['author'])
         request.data._mutable = False
@@ -327,7 +377,9 @@ class CreateRetrieveArticle(APIView):
         print(data)
         if serializer.is_valid(raise_exception=True):
             serializer.save()
-            print(serializer)
+
+            text_watermark(image)
+
             return Response({"Success": "Article Created"}, status=status.HTTP_201_CREATED)
         else:
             return Response(data=serializer.data, status=status.HTTP_400_BAD_REQUEST)
@@ -392,3 +444,18 @@ class DestroyUpdateArticle(APIView):
             Article.objects.filter(pk=pk).first()
         )
         return Response(data=article_data.data, status=status.HTTP_200_OK)
+
+# class GoogleSocialAuthView(GenericAPIView):
+#
+#     serializer_class = GoogleSocialAuthSerializer
+#
+#     def post(self, request):
+#         """
+#         POST with "auth_token"
+#         Send an idtoken as from google to get user information
+#         """
+#
+#         serializer = self.serializer_class(data=request.data)
+#         serializer.is_valid(raise_exception=True)
+#         data = ((serializer.validated_data)['auth_token'])
+#         return Response(data, status=status.HTTP_200_OK)
